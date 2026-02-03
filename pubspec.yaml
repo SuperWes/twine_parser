@@ -1,0 +1,16 @@
+name: twine_parser
+description: A Dart library for parsing and evaluating Twine stories, with support for the Harlowe story format.
+version: 0.1.0
+homepage: https://github.com/AcousticFidelity/twine_parser
+repository: https://github.com/AcousticFidelity/twine_parser
+issue_tracker: https://github.com/AcousticFidelity/twine_parser/issues
+
+environment:
+  sdk: ^3.0.0
+
+dependencies:
+  html: ^0.15.4
+
+dev_dependencies:
+  lints: ^5.0.0
+  test: ^1.24.0
