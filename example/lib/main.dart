@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show rootBundle;
 import 'package:http/http.dart' as http;
 import 'package:twine_parser/twine_parser.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 void main() {
   runApp(const TwineParserExampleApp());
@@ -22,17 +24,18 @@ class TwineParserExampleApp extends StatelessWidget {
   }
 }
 
-/// Example Twine stories from rheteric.org
+/// Example Twine stories bundled from rheteric.org
+/// Original author: Eric Detweiler (https://rheteric.org/twine)
 class ExampleStory {
   final String title;
   final String description;
-  final String url;
+  final String assetPath;
   final List<String> features;
 
   const ExampleStory({
     required this.title,
     required this.description,
-    required this.url,
+    required this.assetPath,
     required this.features,
   });
 }
@@ -42,35 +45,35 @@ const exampleStories = [
     title: 'Sandwich Distribution Simulator',
     description:
         'Collect and give away sandwiches using numerical variables and if/else macros.',
-    url: 'https://rheteric.org/games/sandwich.html',
+    assetPath: 'assets/stories/sandwich.html',
     features: ['(set:)', '(if:)', '(else:)'],
   ),
   ExampleStory(
     title: "What's Your Name?",
     description:
         'A game that lets the player name a character using string variables.',
-    url: 'https://rheteric.org/games/names.html',
+    assetPath: 'assets/stories/names.html',
     features: ['(prompt:)', '(set:)'],
   ),
   ExampleStory(
     title: 'Traveler',
     description:
         'Go in four cardinal directions while the game tracks where you\'ve been.',
-    url: 'https://rheteric.org/games/traveler.html',
+    assetPath: 'assets/stories/traveler.html',
     features: ['(set:)', '(visited:)', 'passage tags'],
   ),
   ExampleStory(
     title: 'Bus Stop',
     description:
         'Experience a haunting encounter at a bus stop with random text generation.',
-    url: 'https://rheteric.org/games/busstop.html',
+    assetPath: 'assets/stories/busstop.html',
     features: ['(a:)', '(print:)', '(random:)', '(set:)'],
   ),
   ExampleStory(
     title: 'Epic Journey',
     description:
         'A fantasy quest using true/false and numerical variables for combat and inventory.',
-    url: 'https://rheteric.org/games/journey.html',
+    assetPath: 'assets/stories/journey.html',
     features: ['(if:)', '(else:)', '(set:)'],
   ),
 ];
@@ -93,7 +96,47 @@ class _StorySelectionScreenState extends State<StorySelectionScreen> {
     super.dispose();
   }
 
-  Future<void> _loadStory(String url) async {
+  Future<void> _loadStoryFromAsset(String assetPath) async {
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+
+    try {
+      final storyHtml = await rootBundle.loadString(assetPath);
+
+      final parser = TwineParser();
+      await parser.parseStory(storyHtml);
+
+      if (parser.passages.isEmpty) {
+        throw Exception(
+            'No passages found in the story. Make sure the URL points to a Twine HTML file.');
+      }
+
+      if (mounted) {
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (context) => StoryPlayerScreen(
+              parser: parser,
+              storyTitle: assetPath.split('/').last.replaceAll('.html', ''),
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      setState(() {
+        _error = e.toString();
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _loadStoryFromUrl(String url) async {
     setState(() {
       _isLoading = true;
       _error = null;
@@ -118,7 +161,8 @@ class _StorySelectionScreenState extends State<StorySelectionScreen> {
           MaterialPageRoute(
             builder: (context) => StoryPlayerScreen(
               parser: parser,
-              storyUrl: url,
+              storyTitle:
+                  Uri.parse(url).pathSegments.lastOrNull ?? 'Custom Story',
             ),
           ),
         );
@@ -133,6 +177,13 @@ class _StorySelectionScreenState extends State<StorySelectionScreen> {
           _isLoading = false;
         });
       }
+    }
+  }
+
+  Future<void> _openAuthorPage() async {
+    final uri = Uri.parse('https://rheteric.org/twine');
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
     }
   }
 
@@ -158,7 +209,7 @@ class _StorySelectionScreenState extends State<StorySelectionScreen> {
             onPressed: () {
               Navigator.pop(context);
               if (_urlController.text.isNotEmpty) {
-                _loadStory(_urlController.text);
+                _loadStoryFromUrl(_urlController.text);
               }
             },
             child: const Text('Load'),
@@ -234,15 +285,21 @@ class _StorySelectionScreenState extends State<StorySelectionScreen> {
                   style: Theme.of(context).textTheme.titleLarge,
                 ),
                 const SizedBox(height: 8),
-                Text(
-                  'From rheteric.org/twine - Tiny Twine Examples by Eric Detweiler',
-                  style: Theme.of(context).textTheme.bodySmall,
+                InkWell(
+                  onTap: _openAuthorPage,
+                  child: Text(
+                    'Tiny Twine Examples by Eric Detweiler (rheteric.org/twine)',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: Theme.of(context).colorScheme.primary,
+                          decoration: TextDecoration.underline,
+                        ),
+                  ),
                 ),
                 const SizedBox(height: 16),
                 ...exampleStories.map((story) => Card(
                       margin: const EdgeInsets.only(bottom: 12),
                       child: InkWell(
-                        onTap: () => _loadStory(story.url),
+                        onTap: () => _loadStoryFromAsset(story.assetPath),
                         borderRadius: BorderRadius.circular(12),
                         child: Padding(
                           padding: const EdgeInsets.all(16),
@@ -282,12 +339,12 @@ class _StorySelectionScreenState extends State<StorySelectionScreen> {
 
 class StoryPlayerScreen extends StatefulWidget {
   final TwineParser parser;
-  final String storyUrl;
+  final String storyTitle;
 
   const StoryPlayerScreen({
     super.key,
     required this.parser,
-    required this.storyUrl,
+    required this.storyTitle,
   });
 
   @override
@@ -310,8 +367,8 @@ class _StoryPlayerScreenState extends State<StoryPlayerScreen> {
     final startPassageName = widget.parser.getStartPassage().name;
     // Then parse it with game state to capture state changes
     // Pass empty history since this is the first passage
-    final startPassage =
-        widget.parser.getPassage(startPassageName, gameState: _gameState, visitedPassages: _history);
+    final startPassage = widget.parser.getPassage(startPassageName,
+        gameState: _gameState, visitedPassages: _history);
     if (startPassage != null) {
       // Apply initial state changes (e.g., variable initialization)
       if (startPassage.stateChanges != null) {
@@ -328,8 +385,8 @@ class _StoryPlayerScreenState extends State<StoryPlayerScreen> {
   void _navigateToPassage(String passageName) {
     // Always re-parse the passage to get fresh random values
     // Pass the history to support (visited:) macro evaluation
-    final passage =
-        widget.parser.getPassage(passageName, gameState: _gameState, visitedPassages: _history);
+    final passage = widget.parser.getPassage(passageName,
+        gameState: _gameState, visitedPassages: _history);
     if (passage != null) {
       // Apply state changes
       if (passage.stateChanges != null) {
@@ -456,7 +513,9 @@ class _StoryPlayerScreenState extends State<StoryPlayerScreen> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('URL: ${widget.storyUrl}'),
+            Text('Story: ${widget.storyTitle}'),
+            const SizedBox(height: 8),
+            const Text('Author: Eric Detweiler (rheteric.org/twine)'),
             const SizedBox(height: 8),
             Text('Passages: ${widget.parser.passages.length}'),
             const SizedBox(height: 8),
