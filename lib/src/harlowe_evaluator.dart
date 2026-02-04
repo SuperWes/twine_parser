@@ -291,7 +291,7 @@ class HarloweEvaluator {
           r'\(a:\s*(.+?)\s*\)$',
           dotAll: true,
         ).firstMatch(valueStr);
-        
+
         if (arrayWithValuesMatch != null) {
           final itemsStr = arrayWithValuesMatch.group(1)!;
           final items = <String>[];
@@ -339,9 +339,10 @@ class HarloweEvaluator {
 
   /// Parses a (set:...) command with arithmetic operations.
   void executeArithmeticSet(String command) {
-    // Pattern: (set: $varName to $varName + value)
-    final pattern = RegExp(r'\$(\w+)\s+to\s+\$(\w+)\s*([+\-*/])\s*(\d+)');
-    final match = pattern.firstMatch(command);
+    // Pattern: (set: $varName to $varName + value) or (set: $varName to it + value)
+    // First try with explicit variable reference
+    var pattern = RegExp(r'\$(\w+)\s+to\s+\$(\w+)\s*([+\-*/])\s*(\d+)');
+    var match = pattern.firstMatch(command);
 
     if (match != null) {
       final varName = match.group(1)!;
@@ -350,6 +351,40 @@ class HarloweEvaluator {
       final operand = num.parse(match.group(4)!);
 
       final currentValue = _toNumber(variables[sourceVar]) ?? 0;
+
+      num newValue;
+      switch (operator) {
+        case '+':
+          newValue = currentValue + operand;
+          break;
+        case '-':
+          newValue = currentValue - operand;
+          break;
+        case '*':
+          newValue = currentValue * operand;
+          break;
+        case '/':
+          newValue = currentValue / operand;
+          break;
+        default:
+          return;
+      }
+
+      setVariable(varName, newValue);
+      return;
+    }
+
+    // Try with "it" keyword - "it" refers to the variable being assigned
+    pattern = RegExp(r'\$(\w+)\s+to\s+it\s*([+\-*/])\s*(\d+)');
+    match = pattern.firstMatch(command);
+
+    if (match != null) {
+      final varName = match.group(1)!;
+      final operator = match.group(2)!;
+      final operand = num.parse(match.group(3)!);
+
+      // "it" refers to the current value of the variable being assigned
+      final currentValue = _toNumber(variables[varName]) ?? 0;
 
       num newValue;
       switch (operator) {

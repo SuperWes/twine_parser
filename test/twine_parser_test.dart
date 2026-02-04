@@ -120,6 +120,18 @@ void main() {
         evaluator.executeArithmeticSet('\$multiplier to \$multiplier * 3');
         expect(evaluator.variables['multiplier'], equals(15));
       });
+
+      test('uses "it" keyword to reference current variable value', () {
+        final evaluator = HarloweEvaluator({'sandwich': 2});
+        evaluator.executeArithmeticSet('\$sandwich to it + 1');
+        expect(evaluator.variables['sandwich'], equals(3));
+      });
+
+      test('subtracts using "it" keyword', () {
+        final evaluator = HarloweEvaluator({'sandwich': 5});
+        evaluator.executeArithmeticSet('\$sandwich to it - 1');
+        expect(evaluator.variables['sandwich'], equals(4));
+      });
     });
   });
 
@@ -188,7 +200,8 @@ void main() {
       expect(startPassage.choices.length, equals(2));
       // Arrow syntax: display text is before ->, target is after
       expect(startPassage.choices[0].text, equals('Nod again.'));
-      expect(startPassage.choices[0].targetPassage, equals('You nod politely.'));
+      expect(
+          startPassage.choices[0].targetPassage, equals('You nod politely.'));
       // No separator: both display and target are the same
       expect(startPassage.choices[1].text, equals('Step back.'));
       expect(startPassage.choices[1].targetPassage, equals('Step back.'));
@@ -210,7 +223,8 @@ void main() {
     });
 
     group('array and random macros', () {
-      test('evaluates (print:) with possessive array access using random', () async {
+      test('evaluates (print:) with possessive array access using random',
+          () async {
         final parser = TwineParser();
         const storyHtml = '''
           <tw-storydata>
@@ -225,12 +239,21 @@ void main() {
 
         final startPassage = parser.passages['Start']!;
         // The content should contain one of the response words
-        final possibleResponses = ['moans', 'howls', 'cowers', 'looms', 'menaces', 'seethes'];
+        final possibleResponses = [
+          'moans',
+          'howls',
+          'cowers',
+          'looms',
+          'menaces',
+          'seethes'
+        ];
         final containsResponse = possibleResponses.any(
-          (response) => startPassage.content.contains('The figure $response in response.'),
+          (response) => startPassage.content
+              .contains('The figure $response in response.'),
         );
         expect(containsResponse, isTrue,
-            reason: 'Content should contain one of the array values: ${startPassage.content}');
+            reason:
+                'Content should contain one of the array values: ${startPassage.content}');
       });
 
       test('evaluates possessive array access with fixed index', () async {
@@ -265,7 +288,8 @@ void main() {
 
         final startPassage = parser.passages['Start']!;
         // The content should contain a number between 1 and 6
-        final match = RegExp(r'You rolled a (\d+)!').firstMatch(startPassage.content);
+        final match =
+            RegExp(r'You rolled a (\d+)!').firstMatch(startPassage.content);
         expect(match, isNotNull, reason: 'Content: ${startPassage.content}');
         if (match != null) {
           final number = int.parse(match.group(1)!);
@@ -296,8 +320,68 @@ void main() {
         expect(startPassage, isNotNull);
         expect(startPassage!.stateChanges, isNotNull);
         expect(startPassage.stateChanges!['response'], isA<List>());
-        expect(startPassage.stateChanges!['response'], 
+        expect(startPassage.stateChanges!['response'],
             equals(['moans', 'howls', 'seethes']));
+      });
+
+      test('handles nested links in conditional branches correctly', () async {
+        final parser = TwineParser();
+        const storyHtml = '''
+          <tw-storydata>
+            <tw-passagedata name="Start">
+              (set: \$points to 5)
+              (if: \$points >= 0)[Groovular, [[let's see where this goes!|Next]]]
+              (else:)[Sorry, not enough points]
+            </tw-passagedata>
+            <tw-passagedata name="Next">
+              The next passage
+            </tw-passagedata>
+          </tw-storydata>
+        ''';
+
+        await parser.parseStory(storyHtml);
+
+        final startPassage = parser.getPassage('Start', gameState: {});
+        expect(startPassage, isNotNull);
+        // Content should show "Groovular," without leftover brackets
+        expect(startPassage!.content, contains('Groovular,'));
+        expect(startPassage.content, isNot(contains(']]')));
+        expect(startPassage.content, isNot(contains('[[')));
+        expect(
+            startPassage.content, isNot(contains('Sorry, not enough points')));
+        // Should have extracted the link as a choice
+        expect(startPassage.choices.length, equals(1));
+        expect(startPassage.choices.first.text,
+            equals("let's see where this goes!"));
+        expect(startPassage.choices.first.targetPassage, equals('Next'));
+      });
+
+      test('handles nested links in else branch when else is taken', () async {
+        final parser = TwineParser();
+        const storyHtml = '''
+          <tw-storydata>
+            <tw-passagedata name="Start">
+              (set: \$points to -10)
+              (if: \$points >= 0)[Good job, [[continue|Next]]]
+              (else:)[Better luck, [[try again|Retry]]]
+            </tw-passagedata>
+            <tw-passagedata name="Next">Next passage</tw-passagedata>
+            <tw-passagedata name="Retry">Retry passage</tw-passagedata>
+          </tw-storydata>
+        ''';
+
+        await parser.parseStory(storyHtml);
+
+        final startPassage = parser.getPassage('Start', gameState: {});
+        expect(startPassage, isNotNull);
+        // Content should show "Better luck," from else branch
+        expect(startPassage!.content, contains('Better luck,'));
+        expect(startPassage.content, isNot(contains('Good job')));
+        expect(startPassage.content, isNot(contains(']]')));
+        // Should have extracted the link from else branch as a choice
+        expect(startPassage.choices.length, equals(1));
+        expect(startPassage.choices.first.text, equals('try again'));
+        expect(startPassage.choices.first.targetPassage, equals('Retry'));
       });
     });
   });

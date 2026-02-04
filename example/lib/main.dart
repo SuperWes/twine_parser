@@ -302,8 +302,26 @@ class _StoryPlayerScreenState extends State<StoryPlayerScreen> {
   @override
   void initState() {
     super.initState();
-    _currentPassage = widget.parser.getStartPassage();
-    _history.add(_currentPassage.name);
+    _initializeStory();
+  }
+
+  void _initializeStory() {
+    // Get the start passage name first
+    final startPassageName = widget.parser.getStartPassage().name;
+    // Then parse it with game state to capture state changes
+    final startPassage =
+        widget.parser.getPassage(startPassageName, gameState: _gameState);
+    if (startPassage != null) {
+      // Apply initial state changes (e.g., variable initialization)
+      if (startPassage.stateChanges != null) {
+        _gameState.addAll(startPassage.stateChanges!);
+      }
+      _currentPassage = startPassage;
+      _history.add(_currentPassage.name);
+    } else {
+      _currentPassage = widget.parser.getStartPassage();
+      _history.add(_currentPassage.name);
+    }
   }
 
   void _navigateToPassage(String passageName) {
@@ -324,12 +342,10 @@ class _StoryPlayerScreenState extends State<StoryPlayerScreen> {
   }
 
   void _restart() {
-    setState(() {
-      _gameState.clear();
-      _history.clear();
-      _currentPassage = widget.parser.getStartPassage();
-      _history.add(_currentPassage.name);
-    });
+    _gameState.clear();
+    _history.clear();
+    _initializeStory();
+    setState(() {});
   }
 
   @override

@@ -101,8 +101,9 @@ class TwineParser {
     // Execute all set commands in this content
     final setCommands = _extractSetCommands(content);
     for (var setCommand in setCommands) {
+      // Match arithmetic with explicit variable or 'it' keyword
       final arithmeticPattern = RegExp(
-        r'\$(\w+)\s+to\s+\$(\w+)\s*([+\-*/])\s*(\d+)',
+        r'\$(\w+)\s+to\s+(?:\$(\w+)|it)\s*([+\-*/])\s*(\d+)',
       );
       if (arithmeticPattern.hasMatch(setCommand)) {
         evaluator.executeArithmeticSet(setCommand);
@@ -230,9 +231,9 @@ class TwineParser {
       topLevelOnly: true,
     );
     for (var setCommand in setCommands) {
-      // Try arithmetic first, then simple assignment
+      // Try arithmetic first (with explicit variable or 'it'), then simple assignment
       final arithmeticPattern = RegExp(
-        r'\$(\w+)\s+to\s+\$(\w+)\s*([+\-*/])\s*(\d+)',
+        r'\$(\w+)\s+to\s+(?:\$(\w+)|it)\s*([+\-*/])\s*(\d+)',
       );
       if (arithmeticPattern.hasMatch(setCommand)) {
         evaluator.executeArithmeticSet(setCommand);
@@ -356,9 +357,9 @@ class TwineParser {
     // Set commands inside conditional branches will be handled when the branch is selected.
     final setCommands = _extractSetCommands(cleaned, topLevelOnly: true);
     for (var setCommand in setCommands) {
-      // Try arithmetic first, then simple assignment
+      // Try arithmetic first (with explicit variable or 'it'), then simple assignment
       final arithmeticPattern = RegExp(
-        r'\$(\w+)\s+to\s+\$(\w+)\s*([+\-*/])\s*(\d+)',
+        r'\$(\w+)\s+to\s+(?:\$(\w+)|it)\s*([+\-*/])\s*(\d+)',
       );
       if (arithmeticPattern.hasMatch(setCommand)) {
         evaluator.executeArithmeticSet(setCommand);
@@ -590,6 +591,15 @@ class TwineParser {
 
               int searchPos = contentEnd;
               while (searchPos < result.length) {
+                // Skip leading whitespace
+                while (searchPos < result.length &&
+                    (result[searchPos] == ' ' ||
+                        result[searchPos] == '\n' ||
+                        result[searchPos] == '\t' ||
+                        result[searchPos] == '\r')) {
+                  searchPos++;
+                }
+
                 // Check for (else-if: condition)[
                 if (searchPos + 8 < result.length &&
                     result.substring(searchPos, searchPos + 8) == '(else-if') {
@@ -644,7 +654,7 @@ class TwineParser {
 
                 // Check for (else:)[
                 final elseMatch = RegExp(
-                  r'^\(else:\)\[',
+                  r'^\s*\(else:\)\s*\[',
                 ).firstMatch(result.substring(searchPos));
                 if (elseMatch != null) {
                   final elseContentStart = searchPos + elseMatch.end;
@@ -733,8 +743,79 @@ class TwineParser {
     }
 
     // Clean up any remaining orphaned (else:) or (else-if:) blocks
-    result = result.replaceAll(RegExp(r'\(else-if:[^\)]+\)\[([^\]]*)\]'), '');
-    result = result.replaceAll(RegExp(r'\(else:\)\[([^\]]*)\]'), '');
+    // Must use bracket counting since content may have nested brackets (links)
+    result = _removeOrphanedBranches(result);
+
+    return result;
+  }
+
+  /// Removes orphaned (else:)[...] and (else-if:...)[...] blocks using bracket counting
+  String _removeOrphanedBranches(String content) {
+    var result = content;
+
+    // Remove (else:)[...] blocks with proper bracket counting
+    while (true) {
+      final elseMatch = RegExp(r'\(else:\)\[').firstMatch(result);
+      if (elseMatch == null) break;
+
+      final bracketStart = elseMatch.end - 1; // Position of [
+      int bracketCount = 1;
+      int contentEnd = bracketStart + 1;
+
+      while (contentEnd < result.length && bracketCount > 0) {
+        if (result[contentEnd] == '[') bracketCount++;
+        if (result[contentEnd] == ']') bracketCount--;
+        contentEnd++;
+      }
+
+      if (bracketCount == 0) {
+        result =
+            result.substring(0, elseMatch.start) + result.substring(contentEnd);
+      } else {
+        break; // Unbalanced brackets, stop
+      }
+    }
+
+    // Remove (else-if:...)[...] blocks with proper bracket counting
+    while (true) {
+      final elseIfMatch = RegExp(r'\(else-if:').firstMatch(result);
+      if (elseIfMatch == null) break;
+
+      // Find matching ) for the condition
+      int parenCount = 1;
+      int condEnd = elseIfMatch.end;
+      while (condEnd < result.length && parenCount > 0) {
+        if (result[condEnd] == '(') parenCount++;
+        if (result[condEnd] == ')') parenCount--;
+        condEnd++;
+      }
+
+      if (parenCount != 0 || condEnd >= result.length) break;
+
+      // Find the [ after )
+      int bracketStart = condEnd;
+      while (bracketStart < result.length && result[bracketStart] != '[') {
+        bracketStart++;
+      }
+
+      if (bracketStart >= result.length) break;
+
+      int bracketCount = 1;
+      int contentEnd = bracketStart + 1;
+
+      while (contentEnd < result.length && bracketCount > 0) {
+        if (result[contentEnd] == '[') bracketCount++;
+        if (result[contentEnd] == ']') bracketCount--;
+        contentEnd++;
+      }
+
+      if (bracketCount == 0) {
+        result = result.substring(0, elseIfMatch.start) +
+            result.substring(contentEnd);
+      } else {
+        break; // Unbalanced brackets, stop
+      }
+    }
 
     return result;
   }
