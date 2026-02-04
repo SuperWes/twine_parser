@@ -309,8 +309,9 @@ class _StoryPlayerScreenState extends State<StoryPlayerScreen> {
     // Get the start passage name first
     final startPassageName = widget.parser.getStartPassage().name;
     // Then parse it with game state to capture state changes
+    // Pass empty history since this is the first passage
     final startPassage =
-        widget.parser.getPassage(startPassageName, gameState: _gameState);
+        widget.parser.getPassage(startPassageName, gameState: _gameState, visitedPassages: _history);
     if (startPassage != null) {
       // Apply initial state changes (e.g., variable initialization)
       if (startPassage.stateChanges != null) {
@@ -326,8 +327,9 @@ class _StoryPlayerScreenState extends State<StoryPlayerScreen> {
 
   void _navigateToPassage(String passageName) {
     // Always re-parse the passage to get fresh random values
+    // Pass the history to support (visited:) macro evaluation
     final passage =
-        widget.parser.getPassage(passageName, gameState: _gameState);
+        widget.parser.getPassage(passageName, gameState: _gameState, visitedPassages: _history);
     if (passage != null) {
       // Apply state changes
       if (passage.stateChanges != null) {

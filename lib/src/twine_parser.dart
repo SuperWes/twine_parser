@@ -33,6 +33,10 @@ class TwineParser {
   /// Whether to enable debug logging.
   bool debugMode = false;
 
+  /// List of visited passage names for (visited:) macro evaluation.
+  List<String> _visitedPassages = [];
+
+
   /// Creates a new TwineParser with optional debug settings.
   TwineParser({this.debugMode = false, this.debugLogger});
 
@@ -172,10 +176,13 @@ class TwineParser {
     }
   }
 
-  Passage _parsePassage(Element element, {Map<String, dynamic>? gameState}) {
+  Passage _parsePassage(Element element, {Map<String, dynamic>? gameState, List<String>? visitedPassages}) {
     final name = element.attributes['name'] ?? '';
     final tags = element.attributes['tags'];
     final rawContent = element.text;
+
+    // Set visited passages for (visited:) macro evaluation
+    _visitedPassages = visitedPassages ?? [];
 
     // Initialize evaluator with a COPY of game state to avoid modifying the original
     final initialState = gameState != null
@@ -742,6 +749,71 @@ class TwineParser {
       maxIterations--;
     }
 
+
+    // Handle (visited:...)[...] macros for checking passage visit history
+    maxIterations = 20;
+    while (maxIterations > 0) {
+      bool foundMatch = false;
+      
+      final visitedIndex = result.indexOf('(visited:');
+      if (visitedIndex != -1) {
+        // Find the closing paren of (visited:...) by counting parentheses
+        int parenCount = 1;
+        int argStart = visitedIndex + 9; // After "(visited:"
+        int argEnd = argStart;
+        
+        while (argEnd < result.length && parenCount > 0) {
+          if (result[argEnd] == '(') parenCount++;
+          if (result[argEnd] == ')') parenCount--;
+          if (parenCount == 0) break;
+          argEnd++;
+        }
+        
+        if (argEnd < result.length && result[argEnd] == ')') {
+          final visitedArg = result.substring(argStart, argEnd).trim();
+          
+          // Now find the opening bracket [ after the closing paren
+          int bracketStart = argEnd + 1;
+          while (bracketStart < result.length && result[bracketStart] != '[') {
+            bracketStart++;
+          }
+          
+          if (bracketStart < result.length) {
+            final contentStart = bracketStart + 1;
+            
+            // Find matching closing bracket by counting
+            int bracketCount = 1;
+            int contentEnd = contentStart;
+            while (contentEnd < result.length && bracketCount > 0) {
+              if (result[contentEnd] == '[') bracketCount++;
+              if (result[contentEnd] == ']') bracketCount--;
+              contentEnd++;
+            }
+            
+            if (bracketCount == 0) {
+              final visitedContent = result.substring(contentStart, contentEnd - 1);
+              
+              // Evaluate whether the passage has been visited
+              bool isVisited = _evaluateVisitedMacro(visitedArg);
+              
+              _debugPrint('[VISITED] Evaluating: "$visitedArg" => $isVisited');
+              
+              // Replace with content if visited, otherwise empty
+              final replacement = isVisited ? _evaluateConditionals(visitedContent) : '';
+              
+              result = result.substring(0, visitedIndex) +
+                  replacement +
+                  result.substring(contentEnd);
+              foundMatch = true;
+            }
+          }
+        }
+      }
+      
+      if (!foundMatch) break;
+      maxIterations--;
+    }
+
     // Clean up any remaining orphaned (else:) or (else-if:) blocks
     // Must use bracket counting since content may have nested brackets (links)
     result = _removeOrphanedBranches(result);
@@ -819,6 +891,62 @@ class TwineParser {
 
     return result;
   }
+
+  /// Evaluates a (visited:) macro argument to determine if passage(s) have been visited.
+  ///
+  /// Supports:
+  /// - Simple passage name: "mountain"
+  /// - Lambda with where clause: where its tags contains "Forest"
+  bool _evaluateVisitedMacro(String arg) {
+    final trimmed = arg.trim();
+    
+    // Handle simple quoted passage name: "passageName"
+    if (trimmed.startsWith('"') && trimmed.endsWith('"')) {
+      final passageName = trimmed.substring(1, trimmed.length - 1);
+      return _visitedPassages.contains(passageName);
+    }
+    
+    // Handle "where" lambda: where its tags contains "Forest"
+    if (trimmed.startsWith('where ')) {
+      final condition = trimmed.substring(6).trim(); // After "where "
+      
+      // For each visited passage, check if it matches the condition
+      for (final passageName in _visitedPassages) {
+        if (_passageMatchesCondition(passageName, condition)) {
+          return true;
+        }
+      }
+      return false;
+    }
+    
+    // Default: treat as unquoted passage name
+    return _visitedPassages.contains(trimmed);
+  }
+
+  /// Checks if a passage matches a where condition.
+  ///
+  /// Supports conditions like:
+  /// - its tags contains "Forest"
+  bool _passageMatchesCondition(String passageName, String condition) {
+    // Get the passage's tags
+    final element = _rawPassages[passageName];
+    if (element == null) return false;
+    
+    final tags = element.attributes['tags'] ?? '';
+    
+    // Parse "its tags contains \"value\""
+    final tagsContainsPattern = RegExp(r'its\s+tags\s+contains\s+"([^"]+)"');
+    final match = tagsContainsPattern.firstMatch(condition);
+    if (match != null) {
+      final searchTag = match.group(1)!;
+      // Tags are space-separated
+      final tagList = tags.split(RegExp(r'\s+'));
+      return tagList.any((tag) => tag.contains(searchTag));
+    }
+    
+    return false;
+  }
+
 
   String _evaluatePrintExpression(String expression) {
     // Check for comparison expressions - these should return empty in (print:) context
@@ -1045,10 +1173,10 @@ class TwineParser {
   ///
   /// If [gameState] is provided, the passage will be re-parsed with
   /// those variables to evaluate conditionals correctly.
-  Passage? getPassage(String name, {Map<String, dynamic>? gameState}) {
+  Passage? getPassage(String name, {Map<String, dynamic>? gameState, List<String>? visitedPassages}) {
     if (gameState != null && _rawPassages.containsKey(name)) {
       // Re-parse with current game state
-      return _parsePassage(_rawPassages[name]!, gameState: gameState);
+      return _parsePassage(_rawPassages[name]!, gameState: gameState, visitedPassages: visitedPassages);
     }
     return passages[name];
   }

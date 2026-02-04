@@ -384,5 +384,90 @@ void main() {
         expect(startPassage.choices.first.targetPassage, equals('Retry'));
       });
     });
+
+    group('(visited:) macro', () {
+      test('shows content when passage has been visited', () async {
+        final parser = TwineParser();
+        const storyHtml = """
+          <tw-storydata>
+            <tw-passagedata name="Start">
+              Welcome to the hilltop.
+              (visited:"mountain")[You have climbed the mountain before.]
+              Go to [[mountain]]
+            </tw-passagedata>
+            <tw-passagedata name="mountain">The summit.</tw-passagedata>
+          </tw-storydata>
+        """;
+
+        await parser.parseStory(storyHtml);
+
+        // First visit - mountain not yet visited
+        final firstVisit = parser.getPassage('Start', 
+            gameState: {}, 
+            visitedPassages: ['Start']);
+        expect(firstVisit, isNotNull);
+        expect(firstVisit!.content, isNot(contains('You have climbed the mountain before.')));
+        
+        // Second visit - after visiting mountain
+        final secondVisit = parser.getPassage('Start', 
+            gameState: {}, 
+            visitedPassages: ['Start', 'mountain', 'Start']);
+        expect(secondVisit, isNotNull);
+        expect(secondVisit!.content, contains('You have climbed the mountain before.'));
+      });
+      
+      test('hides content when passage has not been visited', () async {
+        final parser = TwineParser();
+        const storyHtml = """
+          <tw-storydata>
+            <tw-passagedata name="Start">
+              (visited:"beach")[You have been to the beach.]
+              Otherwise welcome.
+            </tw-passagedata>
+            <tw-passagedata name="beach">The beach.</tw-passagedata>
+          </tw-storydata>
+        """;
+
+        await parser.parseStory(storyHtml);
+
+        final passage = parser.getPassage('Start', 
+            gameState: {}, 
+            visitedPassages: ['Start']);
+        expect(passage, isNotNull);
+        expect(passage!.content, isNot(contains('You have been to the beach.')));
+        expect(passage.content, contains('Otherwise welcome.'));
+      });
+    
+      test('handles where clause with tags', () async {
+        final parser = TwineParser();
+        const storyHtml = """
+          <tw-storydata>
+            <tw-passagedata name="Start">
+              Welcome.
+              (visited: where its tags contains "Forest")[You have visited a forest.]
+              Go to [[pine forest]] or [[beach]]
+            </tw-passagedata>
+            <tw-passagedata name="pine forest" tags="Forest nature">Pine trees.</tw-passagedata>
+            <tw-passagedata name="beach" tags="water">Sandy beach.</tw-passagedata>
+          </tw-storydata>
+        """;
+
+        await parser.parseStory(storyHtml);
+
+        // No forests visited yet
+        final firstVisit = parser.getPassage('Start', 
+            gameState: {}, 
+            visitedPassages: ['Start', 'beach']);
+        expect(firstVisit, isNotNull);
+        expect(firstVisit!.content, isNot(contains('You have visited a forest.')));
+        
+        // After visiting pine forest
+        final secondVisit = parser.getPassage('Start', 
+            gameState: {}, 
+            visitedPassages: ['Start', 'pine forest', 'Start']);
+        expect(secondVisit, isNotNull);
+        expect(secondVisit!.content, contains('You have visited a forest.'));
+      });
+});
   });
 }
