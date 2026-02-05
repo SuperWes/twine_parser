@@ -107,7 +107,7 @@ class TwineParser {
     for (var setCommand in setCommands) {
       // Match arithmetic with explicit variable or 'it' keyword
       final arithmeticPattern = RegExp(
-        r'\$(\w+)\s+to\s+(?:\$(\w+)|it)\s*([+\-*/])\s*(\d+)',
+        r'\$(\w+)\s+to\s+(?:\$(\w+)|it)\s*([+\-*/])\s*(?:\$\w+|\d+)',
       );
       if (arithmeticPattern.hasMatch(setCommand)) {
         evaluator.executeArithmeticSet(setCommand);
@@ -240,7 +240,7 @@ class TwineParser {
     for (var setCommand in setCommands) {
       // Try arithmetic first (with explicit variable or 'it'), then simple assignment
       final arithmeticPattern = RegExp(
-        r'\$(\w+)\s+to\s+(?:\$(\w+)|it)\s*([+\-*/])\s*(\d+)',
+        r'\$(\w+)\s+to\s+(?:\$(\w+)|it)\s*([+\-*/])\s*(?:\$\w+|\d+)',
       );
       if (arithmeticPattern.hasMatch(setCommand)) {
         evaluator.executeArithmeticSet(setCommand);
@@ -366,7 +366,7 @@ class TwineParser {
     for (var setCommand in setCommands) {
       // Try arithmetic first (with explicit variable or 'it'), then simple assignment
       final arithmeticPattern = RegExp(
-        r'\$(\w+)\s+to\s+(?:\$(\w+)|it)\s*([+\-*/])\s*(\d+)',
+        r'\$(\w+)\s+to\s+(?:\$(\w+)|it)\s*([+\-*/])\s*(?:\$\w+|\d+)',
       );
       if (arithmeticPattern.hasMatch(setCommand)) {
         evaluator.executeArithmeticSet(setCommand);

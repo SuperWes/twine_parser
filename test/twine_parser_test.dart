@@ -132,6 +132,19 @@ void main() {
         evaluator.executeArithmeticSet('\$sandwich to it - 1');
         expect(evaluator.variables['sandwich'], equals(4));
       });
+
+      test('handles variable operand: \$a to \$a - \$b', () {
+        final evaluator = HarloweEvaluator({'gremlin': 20, 'damage': 5});
+        evaluator.executeArithmeticSet('\$gremlin to \$gremlin - \$damage');
+        expect(evaluator.variables['gremlin'], equals(15));
+      });
+
+      test('adds two variables', () {
+        final evaluator = HarloweEvaluator({'total': 10, 'bonus': 5});
+        evaluator.executeArithmeticSet('\$total to \$total + \$bonus');
+        expect(evaluator.variables['total'], equals(15));
+      });
+
     });
   });
 

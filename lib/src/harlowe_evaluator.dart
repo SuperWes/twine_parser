@@ -374,6 +374,42 @@ class HarloweEvaluator {
       return;
     }
 
+    // Try with variable operand: $varName to $varName operator $varName
+    pattern = RegExp(r'\$(\w+)\s+to\s+\$(\w+)\s*([+\-*/])\s*\$(\w+)');
+    match = pattern.firstMatch(command);
+
+    if (match != null) {
+      final varName = match.group(1)!;
+      final sourceVar = match.group(2)!;
+      final operator = match.group(3)!;
+      final operandVar = match.group(4)!;
+
+      final currentValue = _toNumber(variables[sourceVar]) ?? 0;
+      final operandValue = _toNumber(variables[operandVar]) ?? 0;
+
+      num newValue;
+      switch (operator) {
+        case '+':
+          newValue = currentValue + operandValue;
+          break;
+        case '-':
+          newValue = currentValue - operandValue;
+          break;
+        case '*':
+          newValue = currentValue * operandValue;
+          break;
+        case '/':
+          newValue = operandValue != 0 ? currentValue / operandValue : 0;
+          break;
+        default:
+          return;
+      }
+
+      setVariable(varName, newValue);
+      return;
+    }
+
+
     // Try with "it" keyword - "it" refers to the variable being assigned
     pattern = RegExp(r'\$(\w+)\s+to\s+it\s*([+\-*/])\s*(\d+)');
     match = pattern.firstMatch(command);
