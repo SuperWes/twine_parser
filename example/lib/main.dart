@@ -49,13 +49,6 @@ const exampleStories = [
     features: ['(set:)', '(if:)', '(else:)'],
   ),
   ExampleStory(
-    title: "What's Your Name?",
-    description:
-        'A game that lets the player name a character using string variables.',
-    assetPath: 'assets/stories/names.html',
-    features: ['(prompt:)', '(set:)'],
-  ),
-  ExampleStory(
     title: 'Traveler',
     description:
         'Go in four cardinal directions while the game tracks where you\'ve been.',
