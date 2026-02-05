@@ -1,0 +1,13 @@
+# Example build artifacts
+example/build/
+example/.dart_tool/
+
+# iOS generated files and dependencies
+example/ios/Pods/
+example/ios/Flutter/ephemeral/
+example/ios/Runner.xcworkspace/xcuserdata/
+example/ios/Runner.xcodeproj/xcuserdata/
+
+# IDE files
+.idea/
+*.iml
