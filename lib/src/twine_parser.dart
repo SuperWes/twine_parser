@@ -682,7 +682,7 @@ class TwineParser {
                   }); // null = else (always true)
                   searchPos = elseContentEnd;
                 } else if (searchPos < result.length &&
-                    result[searchPos] == '[') {
+                    result[searchPos] == '[' && (searchPos + 1 >= result.length || result[searchPos + 1] != '[')) {
                   // Implicit else branch: just [...] without (else:)
                   final implicitElseStart = searchPos + 1;
                   bracketCount = 1;
